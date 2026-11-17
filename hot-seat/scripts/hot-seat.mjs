@@ -19,9 +19,12 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHELL = path.join(HERE, '..', 'assets', 'hot-seat.html');
+// Colour mode of the page: 'dark' or 'light' once the user has chosen one, 'auto' (follow the system) until then.
+// Sessions made before the switch carry a theme menu name (for example 'dim'): those count as 'auto'.
+const MODES = ['dark', 'light'];
 
 // ---------------------------------------------------------------- contract
-// Canonical rule list. The page renders it verbatim on its Contract tab, so the user can
+// Canonical rule list. The page renders it verbatim on its Rules tab, so the user can
 // see which rules this session runs under (the "did the skill load its dependencies" check).
 const CONTRACT = {
   version: '1',
@@ -155,7 +158,7 @@ function preflight(args) {
     lavishDirIgnored: ignored,
     node: process.version,
     contract: { source: 'inline', version: CONTRACT.version, rules: CONTRACT.rules.length },
-    note: 'upstream skills are optional: the contract is inline in SKILL.md and on the page Contract tab',
+    note: 'upstream skills are optional: the contract is inline in SKILL.md and on the page Rules tab',
   };
   console.log(JSON.stringify(out, null, 2));
 }
@@ -247,7 +250,7 @@ function init(args) {
   fs.mkdirSync(workdir, { recursive: true });
   const s = {
     schema: 'hot-seat/1', session, createdAt: now(), updatedAt: now(),
-    topic: '', title: '', invokedTopic: args.topic && args.topic !== true && !args.chat ? String(args.topic) : '', theme: 'dim',
+    topic: '', title: '', invokedTopic: args.topic && args.topic !== true && !args.chat ? String(args.topic) : '', theme: 'auto',
     mode: { value: mode, detected, reason: d.reason, signals: d.signals, overridden: mode !== detected },
     repo: { cwd, root: d.root, gitRoot: d.gitRoot, contextFiles: d.contextFiles.map((f) => path.relative(d.root, f) || f) },
     contract: { source: 'inline', version: CONTRACT.version, rules: CONTRACT.rules, upstream: findUpstream(cwd, d.root) },
@@ -349,6 +352,7 @@ function record(args) {
     if (!r) { lines.push(`skipped payload for unknown round ${pl.round}`); continue; }
     const stale = pl.round !== s.round;
     r.receivedAt = now();
+    if (MODES.includes(pl.theme) && pl.theme !== s.theme) { s.theme = pl.theme; lines.push(`colour mode: ${pl.theme} (the user's choice, kept for the next rounds)`); }
     if (pl.steer && pl.steer.trim()) r.steer = (r.steer ? r.steer + '\n' : '') + pl.steer.trim();
     for (const a of pl.answers || []) {
       const q = r.questions.find((x) => x.id === a.id);
@@ -678,7 +682,7 @@ function build(s) {
   const title = `hot-seat${(s.title || s.topic) ? ' - ' + (s.title || s.topic).slice(0, 60).replace(/[<>&"]/g, '') : ''}`;
   let html = shell.replace(/<script id="hs-state" type="application\/json">[\s\S]*?<\/script>/, () => `<script id="hs-state" type="application/json">${json}</script>`);
   html = html.replace(/<title>[\s\S]*?<\/title>/, () => `<title>${title}</title>`);
-  html = html.replace(/<html lang="en" data-theme="[^"]*"/, () => `<html lang="en" data-theme="${s.theme || 'dim'}"`);
+  html = html.replace(/<html lang="en" data-theme="[^"]*"/, () => `<html lang="en" data-theme="${MODES.includes(s.theme) ? s.theme : 'auto'}"`);
   writeAtomic(htmlPathOf(s), html);
 }
 

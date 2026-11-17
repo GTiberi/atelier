@@ -194,6 +194,17 @@ figcaption{color:var(--mute);font-size:13.5px;margin-top:4px}
 blockquote{margin:.3em 0;padding:.2em .8em;border-left:3px solid var(--line);color:var(--mute)}
 .hs-h2{font:400 12px/1.5 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:6px 0 0}
 
+/* what changed since the round before: a small tag plus a quiet highlight, in neutral strong text so no colour is borrowed */
+.mk{display:inline-block;flex:none;font:700 12px/1.5 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:0 7px;border-radius:999px;white-space:nowrap;vertical-align:1px}
+.mk.new{background:var(--hi);color:var(--card);border:1px solid var(--hi)}
+.mk.chg{background:transparent;color:var(--hi);border:1px solid var(--hi)}
+[data-mark]{background:var(--hl);box-shadow:inset 2px 0 0 var(--hi)}
+.mk-legend{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:12px;color:var(--mute)}
+.mk-legend .n{font:700 12px/1.4 var(--mono);margin:0}
+.strip .mk-sum{margin:.35em 0 0;font-size:13.5px;color:var(--mute)}
+.strip .mk-sum b{color:var(--hi);font-weight:600}
+.fold>summary .mk{margin-left:2px}
+
 /* side rail */
 .hs-side{display:flex;flex-direction:column;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
 .tabs2{display:flex;flex-wrap:wrap;justify-content:space-between;gap:0 2px;border-bottom:1px solid var(--line);margin:0 -2px}
@@ -201,11 +212,14 @@ blockquote{margin:.3em 0;padding:.2em .8em;border-left:3px solid var(--line);col
 .tab2:hover{color:var(--fg)}
 .tab2[aria-selected=true]{color:var(--hi);border-bottom-color:var(--acc)}
 .tab2 .n{margin-left:5px;font-weight:400}
+.n.hasnew{background:var(--hi);color:var(--card);border-radius:999px;padding:1px 5px;font-weight:700}
+.tab2 .n.hasnew{margin-left:4px}
 .tabpane{display:none;min-width:0}
 .tabpane.on{display:block}
 .tree,.tree ul{list-style:none;margin:0;padding:0}
 .tree ul{margin-left:4px;padding-left:12px;border-left:1px solid var(--line)}
-.node{display:flex;gap:9px;align-items:flex-start;padding:4px 0;font-size:14px;line-height:1.35;color:var(--fg)}
+.node{display:flex;gap:9px;align-items:flex-start;padding:4px 6px;margin:0 -6px;border-radius:6px;font-size:14px;line-height:1.35;color:var(--fg)}
+.node>span:not(.mk){flex:1 1 auto;min-width:0}
 .node .dot{flex:none;width:9px;height:9px;border-radius:50%;margin-top:5px;border:1.5px solid var(--mute)}
 .node.settled .dot{background:var(--ok);border-color:var(--ok)}
 .node.frontier{color:var(--hi)}
@@ -225,9 +239,10 @@ blockquote{margin:.3em 0;padding:.2em .8em;border-left:3px solid var(--line);col
 .led{border-top:1px solid var(--line);margin-top:10px;padding-top:8px;font-size:13.5px;color:var(--mute)}
 .led .lab{display:block;margin-bottom:2px}
 .led div+div{margin-top:6px}
+.led [data-mark]{padding:3px 6px;margin-left:-6px;margin-right:-6px;border-radius:6px}
 .led b{color:var(--hi);font-weight:600}
 .led .d{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.dec{border-bottom:1px solid var(--line);padding:8px 0}
+.dec{border-bottom:1px solid var(--line);padding:8px;margin:0 -8px}
 .dec:last-child{border-bottom:0}
 .dec h4{font-size:14.5px;margin-bottom:3px}
 .gates{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
@@ -308,6 +323,24 @@ function stance(q, a) {
 }
 // accent = the user's own answer, amber = not settled by talk, green only for settled things
 const STANCE = { agreed: ['acc', 'Agreed'], differed: ['acc', 'Chose differently'], 'own-words': ['acc', 'Own words'], unsure: ['warn', "Don't know"], prototype: ['warn', 'Needs prototype'], skipped: ['mute', 'Out of scope'], answered: ['acc', 'Answered'], open: ['mute', 'Open'] };
+// What is new or changed since the round before comes from the session's recorded history (round.changes, kept by the
+// helper), never from a guess made in the page. Rounds without it (older sessions, the first round) show no marks.
+const CH = round.changes && round.n > 1 ? round.changes : null;
+const markOf = (pane, id) => (CH && CH[pane] && CH[pane][id]) || '';
+const mark = (kind) => kind === 'new' ? '<span class="mk new">new</span>' : kind === 'changed' ? '<span class="mk chg">changed</span>' : '';
+const mattr = (kind) => (kind ? ` data-mark="${kind}"` : '');
+const PANE_NAME = { tree: 'Tree', ledger: 'Ledger', terms: 'Terms', adrs: 'ADRs', facts: 'Facts' };
+const markCount = (pane) => (CH && CH[pane] ? Object.keys(CH[pane]).length : 0);
+const newAssumptions = () => (CH ? (S.assumptions || []).filter((a) => a.round === round.n) : []);
+const anyMarks = () => !!CH && (Object.keys(PANE_NAME).some((k) => markCount(k)) || newAssumptions().length > 0);
+function markSummary() {
+  // the new assumptions are ledger entries too (Derived by me, not said by you)
+  const parts = Object.keys(PANE_NAME).map((k) => {
+    const v = Object.values((CH[k]) || {}), nw = v.filter((x) => x === 'new').length + (k === 'ledger' ? newAssumptions().length : 0), ch = v.filter((x) => x === 'changed').length;
+    return nw || ch ? `${PANE_NAME[k]} <b>${[nw ? nw + ' new' : '', ch ? ch + ' changed' : ''].filter(Boolean).join(', ')}</b>` : '';
+  }).filter(Boolean);
+  return `Since round ${CH.since}: ${parts.join(' · ')}. Marked <span class="mk new">new</span> or <span class="mk chg">changed</span> in the rail${markCount('facts') ? ' and in Fact-finding' : ''}.`;
+}
 const chip = (kind, text, title) => `<span class="chip ${kind}"${title ? ` title="${esc(title)}"` : ''}>${esc(text)}</span>`;
 
 // ---------------------------------------------------------------- header
@@ -421,9 +454,10 @@ function factsFold() {
   const running = S.facts.filter((f) => f.state === 'running');
   const done = S.facts.filter((f) => f.state === 'done');
   if (!running.length && !done.length) return '';
-  return `<details class="fold"><summary><strong>Fact-finding</strong><span class="muted">${done.length} found${running.length ? `, ${running.length} running` : ''}: not asked of you</span></summary><div class="fold-body">
-    ${running.map((f) => `<div class="fold-sub"><span class="dot-run pulse"></span> <strong>Looking up:</strong> ${inline(f.title)} <span class="muted small">(questions that depend on it wait for a later round)</span></div>`).join('')}
-    ${done.map((f) => `<div class="fold-sub small"><strong>${inline(f.title)}</strong><br><span class="muted">${inline(f.result || '')}</span></div>`).join('')}</div></details>`;
+  const nw = markCount('facts');
+  return `<details class="fold"><summary><strong>Fact-finding</strong><span class="muted">${done.length} found${running.length ? `, ${running.length} running` : ''}: not asked of you</span>${nw ? `<span class="mk new" title="${nw} new or changed since round ${CH.since}">${nw} new</span>` : ''}</summary><div class="fold-body">
+    ${running.map((f) => `<div class="fold-sub"${mattr(markOf('facts', f.id))}><span class="dot-run pulse"></span> <strong>Looking up:</strong> ${inline(f.title)} ${mark(markOf('facts', f.id))} <span class="muted small">(questions that depend on it wait for a later round)</span></div>`).join('')}
+    ${done.map((f) => `<div class="fold-sub small"${mattr(markOf('facts', f.id))}><strong>${inline(f.title)}</strong> ${mark(markOf('facts', f.id))}<br><span class="muted">${inline(f.result || '')}</span></div>`).join('')}</div></details>`;
 }
 function warnFold() {
   if (!round.warnings || !round.warnings.length) return '';
@@ -440,7 +474,8 @@ function mainCol() {
   if (S.status === 'done') {
     p.push(`<section class="panel"><h2>Session complete</h2>${md(round.summary || 'Shared understanding confirmed.')}<p class="muted small">Nothing was acted on. Copy the ledger from the Ledger tab and hand it to whatever comes next, in this same conversation.</p></section>`);
   } else {
-    if (round.note) p.push(`<div class="strip"><span class="lab">${round.n === 1 ? 'Before we start' : 'Since your last answers'}</span>${md(round.note)}</div>`);
+    const sum = anyMarks() ? `<p class="mk-sum">${markSummary()}</p>` : '';
+    if (round.note || sum) p.push(`<div class="strip"><span class="lab">${round.n === 1 ? 'Before we start' : 'Since your last answers'}</span>${round.note ? md(round.note) : ''}${sum}</div>`);
     if (round.summary) p.push(`<section class="panel"><h2>Shared understanding, in my words</h2>${md(round.summary)}${(S.assumptions || []).length ? `<h3 style="font-size:14.5px;margin-top:8px">Inferred by me, not said by you: check these</h3><ul>${S.assumptions.map((a) => `<li>${inline(a.text)}</li>`).join('')}</ul>` : ''}</section>`);
     if (sentAt) p.push('<div class="hs-hint" role="status">Round sent. I am working on it: this page will reload with the next round.</div>');
     p.push(...round.questions.map(card));
@@ -458,7 +493,8 @@ function treeHtml() {
   const kids = {}; S.tree.forEach((n) => { const p = n.parent && S.tree.some((x) => x.id === n.parent) ? n.parent : '_'; (kids[p] ||= []).push(n); });
   const li = (n) => {
     const tip = `${n.title} - ${(NODE[n.state] || [0, n.state])[1]}${n.decision ? ': ' + n.decision : ''}${n.parkedReason ? ': ' + n.parkedReason : ''}`;
-    return `<li><div class="node ${esc(n.state)}" title="${esc(tip)}"><i class="dot${n.state === 'running' ? ' pulse' : ''}" aria-hidden="true"></i><span><span class="sr">${esc((NODE[n.state] || [0, n.state])[1])}: </span>${esc(n.title)}</span></div>${kids[n.id] ? `<ul>${kids[n.id].map(li).join('')}</ul>` : ''}</li>`;
+    const m = markOf('tree', n.id);
+    return `<li><div class="node ${esc(n.state)}"${mattr(m)} title="${esc(tip)}"><i class="dot${n.state === 'running' ? ' pulse' : ''}" aria-hidden="true"></i><span><span class="sr">${esc((NODE[n.state] || [0, n.state])[1])}: </span>${esc(n.title)}</span>${mark(m)}</div>${kids[n.id] ? `<ul>${kids[n.id].map(li).join('')}</ul>` : ''}</li>`;
   };
   return `<ul class="tree" aria-label="Design tree of decisions">${(kids._ || []).map(li).join('')}</ul>`;
 }
@@ -471,7 +507,7 @@ function lastSettled() {
 function treeTab() {
   const ls = lastSettled();
   return `${treeHtml()}<div class="legend"><span><i class="l-ok"></i>settled</span><span><i class="l-now"></i>asked now</span><span><i class="l-wait"></i>waiting</span><span><i class="l-look"></i>lookup</span><span><i class="l-park"></i>parked</span></div>
-    ${ls.length ? `<div class="led"><span class="lab">Last settled</span>${ls.map((n) => `<div><b>${inline(n.title)}.</b> <span class="d">${inline(n.decision)}</span></div>`).join('')}</div>` : ''}`;
+    ${ls.length ? `<div class="led"><span class="lab">Last settled</span>${ls.map((n) => `<div${mattr(markOf('ledger', n.id))}><b>${inline(n.title)}.</b> ${mark(markOf('ledger', n.id))}<span class="d">${inline(n.decision)}</span></div>`).join('')}</div>` : ''}`;
 }
 function ledgerTab() {
   const settled = S.tree.filter((n) => n.state === 'settled' && n.id !== 'dm');
@@ -480,10 +516,11 @@ function ledgerTab() {
   const dec = settled.map((n, i) => {
     const q = qs.filter((x) => x.node === n.id && x.answer && x.kind !== 'confirm');
     const words = q.map((x) => x.answer.text).filter(Boolean);
-    return `<div class="dec"><h4>${esc(n.id)}. ${inline(n.title)}</h4><div>${inline(n.decision)}</div>${words.length ? `<blockquote class="small">${words.map(esc).join('<br>')}</blockquote>` : ''}<div class="small muted">${q.map((x) => `${x.id}, round ${x.round}`).join(' | ')}</div></div>`;
+    const m = markOf('ledger', n.id);
+    return `<div class="dec"${mattr(m)}><h4>${esc(n.id)}. ${inline(n.title)} ${mark(m)}</h4><div>${inline(n.decision)}</div>${words.length ? `<blockquote class="small">${words.map(esc).join('<br>')}</blockquote>` : ''}<div class="small muted">${q.map((x) => `${x.id}, round ${x.round}`).join(' | ')}</div></div>`;
   }).join('') || '<p class="muted small">No settled decisions yet. Every answer you send lands here.</p>';
-  const asm = (S.assumptions || []).length ? `<h4 style="margin-top:10px">Derived by me, not said by you</h4><p class="small muted">Check these: they are inferences.</p>${S.assumptions.map((a) => `<div class="dec small">${inline(a.text)}<div class="muted">round ${a.round}</div></div>`).join('')}` : '';
-  const pk = parked.length ? `<h4 style="margin-top:10px">Parked</h4>${parked.map((n) => `<div class="dec"><strong>${inline(n.title)}</strong><div class="small muted">${inline(n.parkedReason)}</div></div>`).join('')}` : '';
+  const asm = (S.assumptions || []).length ? `<h4 style="margin-top:10px">Derived by me, not said by you</h4><p class="small muted">Check these: they are inferences.</p>${S.assumptions.map((a) => { const m = CH && a.round === round.n ? 'new' : ''; return `<div class="dec small"${mattr(m)}>${inline(a.text)} ${mark(m)}<div class="muted">round ${a.round}</div></div>`; }).join('')}` : '';
+  const pk = parked.length ? `<h4 style="margin-top:10px">Parked</h4>${parked.map((n) => `<div class="dec"${mattr(markOf('tree', n.id))}><strong>${inline(n.title)}</strong> ${mark(markOf('tree', n.id))}<div class="small muted">${inline(n.parkedReason)}</div></div>`).join('')}` : '';
   return `${dec}${pk}${asm}<h4 style="margin-top:12px">Export</h4><p class="small muted">The whole ledger as markdown. Hand it to whatever comes next (a spec, tickets, a plan): the answers survive there exactly as decided.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0"><button type="button" class="btn2 sm" data-act="copy-ledger">Copy ledger</button><button type="button" class="btn2 sm" data-act="dl-ledger">Download .md</button><span class="small muted" id="copied" role="status"></span></div>
     <pre class="wrap" id="ledger-md" style="max-height:260px;overflow:auto">${esc(S.ledgerMd)}</pre>`;
@@ -498,7 +535,7 @@ function termChips(g, docs) {
 function termsTab() {
   const docs = S.mode.value === 'docs';
   if (!S.glossary.length) return `<p class="muted small">${docs ? 'No term has resolved yet. When one does it is written to CONTEXT.md right then, and shows here.' : 'No term has resolved yet. In stateless mode terms stay on this page and in the ledger; nothing is written to your workspace.'}</p>`;
-  return S.glossary.map((g) => `<div class="dec"><h4>${esc(g.term)}${g.fr ? ` <span class="muted small">(fr: ${esc(g.fr)})</span>` : ''}</h4><div class="small">${inline(g.definition)}</div>
+  return S.glossary.map((g) => `<div class="dec"${mattr(markOf('terms', g.term))}><h4>${esc(g.term)}${g.fr ? ` <span class="muted small">(fr: ${esc(g.fr)})</span>` : ''} ${mark(markOf('terms', g.term))}</h4><div class="small">${inline(g.definition)}</div>
     ${g.avoid && g.avoid.length ? `<div class="small muted">Avoid: ${g.avoid.map(esc).join(', ')}</div>` : ''}
     <div class="gates">${termChips(g, docs)}</div>
     ${g.note ? `<div class="small muted">${inline(g.note)}</div>` : ''}${g.conflict ? `<div class="small" style="color:var(--warn)">${inline(g.conflict)}</div>` : ''}</div>`).join('');
@@ -507,7 +544,7 @@ function adrsTab() {
   const rule = `<p class="small muted">An ADR needs <strong>all three</strong>: hard to reverse, surprising without context, and a real trade-off. Miss one and there is no ADR. Most sessions write none.</p>`;
   if (!S.adrs.length) return rule + '<p class="muted small">No ADR candidate yet.</p>';
   const gate = (a, k, name) => { const g = (a.gates || {})[k]; return `<span class="chip ${g && g.met ? 'ok' : 'mute'}" title="${esc(g && g.why || '')}">${g && g.met ? 'yes' : 'no'}: ${name}</span>`; };
-  return rule + S.adrs.map((a) => `<div class="dec"><h4>${inline(a.title)}</h4><div class="gates">${gate(a, 'hardToReverse', 'hard to reverse')}${gate(a, 'surprising', 'surprising')}${gate(a, 'tradeoff', 'real trade-off')}</div>
+  return rule + S.adrs.map((a) => `<div class="dec"${mattr(markOf('adrs', a.title))}><h4>${inline(a.title)} ${mark(markOf('adrs', a.title))}</h4><div class="gates">${gate(a, 'hardToReverse', 'hard to reverse')}${gate(a, 'surprising', 'surprising')}${gate(a, 'tradeoff', 'real trade-off')}</div>
     <div>${chip(a.status === 'written' ? 'ok' : a.status === 'skipped' ? 'mute' : 'warn', a.status)}${a.file ? ` <code>${esc(a.file)}</code>` : ''}</div>
     ${a.skipReason ? `<div class="small muted">Skipped${a.skippedBy ? ' by ' + esc(a.skippedBy) : ''}: ${inline(a.skipReason)}</div>` : ''}
     ${['hardToReverse', 'surprising', 'tradeoff'].map((k) => (a.gates && a.gates[k] && a.gates[k].why) ? `<div class="small muted">${esc(a.gates[k].why)}</div>` : '').join('')}</div>`).join('');
@@ -523,13 +560,13 @@ function contractTab() {
 const PANES = { tree: treeTab, ledger: ledgerTab, terms: termsTab, adrs: adrsTab, contract: contractTab };
 function fillPane(id) { const el = document.getElementById('pane-' + id); if (el && !el.dataset.filled) { el.innerHTML = PANES[id](); el.dataset.filled = '1'; } }
 function sidebar() {
-  const docs = S.mode.value === 'docs';
   const tabs = [
-    ['tree', 'Tree', S.tree.length], ['ledger', 'Ledger', S.tree.filter((n) => n.state === 'settled' && n.id !== 'dm').length],
-    ['terms', docs ? 'Glossary' : 'Terms', S.glossary.length], ['adrs', 'ADRs', S.adrs.length], ['contract', 'Rules', ''],
+    ['tree', 'Tree', S.tree.length, markCount('tree')], ['ledger', 'Ledger', S.tree.filter((n) => n.state === 'settled' && n.id !== 'dm').length, markCount('ledger') + newAssumptions().length],
+    ['terms', 'Terms', S.glossary.length, markCount('terms')], ['adrs', 'ADRs', S.adrs.length, markCount('adrs')], ['contract', 'Rules', '', 0],
   ];
   const on = store.get(`hs:tab:${S.session}`) || 'tree';
-  return `<aside class="hs-side" aria-label="Session overview"><div class="tabs2" role="tablist">${tabs.map(([id, l, n]) => `<button type="button" role="tab" class="tab2" id="tab-${id}" data-act="tab" data-tab="${id}" aria-selected="${id === on}" aria-controls="pane-${id}">${l}${n ? `<span class="n">${n}</span>` : ''}</button>`).join('')}</div>
+  return `<aside class="hs-side" aria-label="Session overview"><div class="tabs2" role="tablist">${tabs.map(([id, l, n, m]) => `<button type="button" role="tab" class="tab2" id="tab-${id}" data-act="tab" data-tab="${id}" aria-selected="${id === on}" aria-controls="pane-${id}">${l}${n ? `<span class="n${m ? ' hasnew' : ''}"${m ? ` title="${m} new or changed since round ${CH.since}"` : ''}>${n}</span>` : ''}</button>`).join('')}</div>
+    ${anyMarks() ? '<div class="mk-legend"><span class="mk new">new</span> added <span class="mk chg">changed</span> updated <span class="n hasnew" title="A filled count on a tab means it holds something new">3</span> has news</div>' : ''}
     ${tabs.map(([id]) => `<div class="tabpane ${id === on ? 'on' : ''}" role="tabpanel" id="pane-${id}" aria-labelledby="tab-${id}"></div>`).join('')}</aside>`;
 }
 

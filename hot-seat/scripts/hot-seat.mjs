@@ -274,6 +274,7 @@ function init(args) {
     intakeFollowUp(s, r, []);
     s.round = 1;
   }
+  s.rounds[0].seen = seenOf(s);
   const p = path.join(workdir, 'state.json');
   if (s.htmlPath) fs.mkdirSync(path.dirname(s.htmlPath), { recursive: true });
   writeJSON(p, s);
@@ -410,6 +411,35 @@ function intakeFollowUp(s, r, lines) {
     const dm = s.tree.find((x) => x.id === 'dm');
     Object.assign(dm, { state: 'settled', decision: `Mode: ${mv === 'docs' ? 'codebase (writes CONTEXT.md / ADRs)' : 'stateless (writes nothing to the workspace)'}${s.mode.overridden ? ' - user overrode the detected mode' : ''}` });
   }
+}
+
+// ---------------------------------------------------------------- what changed since the round before
+// Every round carries `seen`: a fingerprint of the tree, ledger, terms, facts and ADRs as the user was shown them. The next
+// round is compared with it and keeps the result as `changes`, which the page uses for its "new" and "changed" marks. The
+// marks therefore come from the recorded history, and a session made before this existed simply has no marks for one round.
+// Round 1 is the intake page, so the first interview round (2) has nothing to be compared with: marks start at round 3.
+const MARKS_FROM_ROUND = 3;
+const fp = (o) => crypto.createHash('sha1').update(JSON.stringify(o)).digest('hex').slice(0, 10);
+function seenOf(s) {
+  const o = { tree: {}, ledger: {}, terms: {}, facts: {}, adrs: {} };
+  for (const n of s.tree) {
+    o.tree[n.id] = fp([n.state, n.title, n.parent || '', n.decision || '', n.parkedReason || '']);
+    if (n.state === 'settled' && n.id !== 'dm') o.ledger[n.id] = fp(n.decision || '');
+  }
+  for (const g of s.glossary) o.terms[g.term] = fp([g.status, g.definition, g.fr || '', !!g.written, g.note || '', g.conflict || '', g.avoid || []]);
+  for (const f of s.facts) o.facts[f.id] = fp([f.state, f.title, f.result || '']);
+  for (const a of s.adrs) o.adrs[a.title] = fp([a.status, a.file || '', a.gates || {}, a.skipReason || '']);
+  return o;
+}
+function changesSince(prev, now, since) {
+  if (!prev) return null;
+  const out = { since };
+  for (const k of Object.keys(now)) {
+    const m = {};
+    for (const [id, h] of Object.entries(now[k])) { const p = (prev[k] || {})[id]; if (p === undefined) m[id] = 'new'; else if (p !== h) m[id] = 'changed'; }
+    if (Object.keys(m).length) out[k] = m;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- next (merge + validate + build)
@@ -564,6 +594,8 @@ function validateAndAdvance(s, patch) {
   }
 
   if (errors.length) return { errors, warnings };
+  round.seen = seenOf(s);
+  round.changes = round.n >= MARKS_FROM_ROUND ? changesSince(prevRound && prevRound.seen, round.seen, prevRound.n) : null;
   s.rounds.push(round);
   s.round = round.n;
   s.status = patch.confirm ? 'confirming' : patch.finish ? 'done' : 'asking';
@@ -594,6 +626,7 @@ function next(args) {
   console.log(`round ${r.n} built: ${r.questions.length} question(s)${r.questions.length ? ` (${r.questions[0].id}-${r.questions[r.questions.length - 1].id})` : ''}, status ${s.status}`);
   console.log(`tree: ${s.tree.length} nodes (${Object.entries(c).map(([k, v]) => `${v} ${k}`).join(', ')})`);
   if (r.writes.length) console.log('written to the workspace: ' + r.writes.map((w) => `${w.file} (${w.status} +${w.added} -${w.removed})`).join(', '));
+  if (r.changes) { const parts = Object.entries(r.changes).filter(([k]) => k !== 'since').map(([k, m]) => `${k} ${Object.values(m).filter((x) => x === 'new').length} new, ${Object.values(m).filter((x) => x === 'changed').length} changed`); console.log(`marked on the page, since round ${r.changes.since}: ${parts.join('; ') || 'nothing'}`); }
   if (res.warnings.length) console.log('warnings (shown on the page too):\n- ' + res.warnings.join('\n- '));
   console.log(`page: ${htmlPathOf(s)}`);
 }
@@ -680,7 +713,7 @@ function ledger(args) {
 // ---------------------------------------------------------------- build
 function build(s) {
   const shell = fs.readFileSync(SHELL, 'utf8');
-  const view = { ...s, ledgerMd: ledgerMarkdown(s) };
+  const view = { ...s, rounds: s.rounds.map(({ seen, ...r }) => r), ledgerMd: ledgerMarkdown(s) };
   const json = JSON.stringify(view).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
   const title = `hot-seat${(s.title || s.topic) ? ' - ' + (s.title || s.topic).slice(0, 60).replace(/[<>&"]/g, '') : ''}`;
   let html = shell.replace(/<script id="hs-state" type="application\/json">[\s\S]*?<\/script>/, () => `<script id="hs-state" type="application/json">${json}</script>`);

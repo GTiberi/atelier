@@ -358,6 +358,8 @@ function record(args) {
       const q = r.questions.find((x) => x.id === a.id);
       if (!q) { lines.push(`skipped answer for unknown question ${a.id}`); continue; }
       q.answer = { choice: a.choice ?? null, choices: a.choices ?? [], text: a.text || '', dontKnow: !!a.dontKnow, prototype: !!a.prototype, skip: !!a.skip, at: now() };
+      // the user picked an answer and then cleared it: the question is open again, and says how it got there
+      if (a.unticked === true) q.answer.unticked = true;
       q.answer.stance = stanceOf(q, q.answer);
     }
     const c = {};
@@ -372,6 +374,7 @@ function record(args) {
       if (a.text) line += `\n      words: ${JSON.stringify(a.text)}`;
       if (a.prototype) line += '\n      flag: needs a prototype';
       if (a.skip) line += '\n      flag: OUT OF SCOPE for the user (park the node, reason: out of scope)';
+      if (a.unticked) line += '\n      flag: unticked - the user picked an answer, then cleared it. It counts as unanswered; ask it again, smaller or differently.';
       lines.push('  ' + line);
     }
     if (r.steer) lines.push(`  steer: ${JSON.stringify(r.steer)}`);

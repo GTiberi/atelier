@@ -95,6 +95,8 @@ button.chip{cursor:pointer;min-height:32px;background:none}
 .strip p{margin:0 0 .3em}.strip p:last-child,.strip ul:last-child{margin-bottom:0}
 .strip ul{margin:.2em 0 .4em;padding-left:1.2em}
 .hs-hint{font-size:13.5px;color:var(--mute)}
+.clear-hint{display:none;margin-top:-4px}
+.hs-choices:has(input:checked)+.clear-hint{display:block}
 
 /* folds: one line that opens on click */
 .fold{border:1px solid var(--line);border-radius:var(--r);background:var(--card)}
@@ -275,7 +277,7 @@ const SENT_KEY = `hs:sent:${S.session}:${round.n}`;
 const interactive = S.status !== 'done' && round.questions.length > 0;
 let draft = store.get(DRAFT_KEY) || { answers: {}, steer: '' };
 let sentAt = store.get(SENT_KEY);
-const A = (id) => (draft.answers[id] ||= { choice: null, choices: [], text: (round.questions.find((x) => x.id === id) || {}).prefill || '', dontKnow: false, prototype: false, skip: false });
+const A = (id) => (draft.answers[id] ||= { choice: null, choices: [], text: (round.questions.find((x) => x.id === id) || {}).prefill || '', dontKnow: false, prototype: false, skip: false, unticked: false });
 const inLavish = () => typeof window.lavish !== 'undefined' && window.lavish && typeof window.lavish.queuePrompt === 'function';
 
 // ---------------------------------------------------------------- colour mode
@@ -348,7 +350,7 @@ function card(q) {
       const on = q.multi ? (a.choices || []).includes(c.id) : a.choice === c.id;
       return `<label class="hs-choice"><input type="${type}" name="${esc(q.id)}" value="${esc(c.id)}" data-q="${esc(q.id)}" data-role="choice" ${on ? 'checked' : ''}>
         <span class="t">${inline(c.label)}${reco.includes(c.id) ? chip('warn', 'Recommended') : ''}</span>${c.detail ? `<small>${inline(c.detail)}</small>` : ''}</label>`;
-    }).join('') + '</fieldset>';
+    }).join('') + '</fieldset>' + (q.multi || sentAt ? '' : '<div class="hs-hint clear-hint">Click the chosen answer again to clear it.</div>');
   }
   let recoBox = '';
   if (!q.noRecommendation && q.kind === 'choice') {
@@ -411,6 +413,7 @@ function steerFold() {
       <li><strong>"I don't know" is an answer.</strong> Say it and mean it. I will ask a smaller question or look the fact up myself.</li>
       <li><strong>Flag what talk cannot settle.</strong> "Needs a prototype" parks the question until you have something to react to.</li>
       <li><strong>Correct the scope.</strong> Too big, drifting, wrong topic: use the steer box at the bottom. You can also select any text on the page and annotate it.</li>
+      <li><strong>Change your mind.</strong> Click a chosen answer again, or press Space or Enter on it, to clear it: the question goes back to open.</li>
       <li>Facts are my job. If I ask you something I could have looked up, tell me.</li>
     </ul></div></details>`;
 }
@@ -579,7 +582,7 @@ function scheduleDraftQueue() {
   }, 700);
 }
 function payload(final) {
-  const answers = round.questions.map((q) => { const a = draft.answers[q.id] || {}; return { id: q.id, choice: a.choice || null, choices: a.choices || [], text: (a.text || '').trim(), dontKnow: !!a.dontKnow, prototype: !!a.prototype, skip: !!a.skip }; });
+  const answers = round.questions.map((q) => { const a = draft.answers[q.id] || {}; const o = { id: q.id, choice: a.choice || null, choices: a.choices || [], text: (a.text || '').trim(), dontKnow: !!a.dontKnow, prototype: !!a.prototype, skip: !!a.skip }; if (a.unticked && !o.choice && !o.choices.length) o.unticked = true; return o; });
   const pl = { v: 1, session: S.session, round: round.n, final: !!final, steer: (draft.steer || '').trim(), answers };
   if (themeChoice) pl.theme = themeChoice;
   return pl;
@@ -589,7 +592,7 @@ function summary(pl) {
   round.questions.forEach((q, i) => {
     const a = pl.answers[i]; const s = stance(q, a); const ch = a.choices && a.choices.length ? a.choices : arr(a.choice);
     const labs = ch.map((id) => `(${id}) ${(q.choices || []).find((c) => c.id === id)?.label || id}`).join(' + ');
-    lines.push(`${q.id} [${s}] ${q.title}${labs ? ' -> ' + labs : ''}${a.text ? ` | words: ${JSON.stringify(a.text)}` : ''}${a.prototype ? ' | needs a prototype' : ''}${a.skip ? ' | OUT OF SCOPE' : ''}`);
+    lines.push(`${q.id} [${s}] ${q.title}${labs ? ' -> ' + labs : ''}${a.text ? ` | words: ${JSON.stringify(a.text)}` : ''}${a.prototype ? ' | needs a prototype' : ''}${a.skip ? ' | OUT OF SCOPE' : ''}${a.unticked ? ' | unticked: chose an answer, then cleared it' : ''}`);
   });
   if (pl.steer) lines.push(`steer: ${JSON.stringify(pl.steer)}`);
   const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(pl))));
@@ -629,10 +632,26 @@ document.addEventListener('input', (e) => {
   else if (role === 'prototype') a.prototype = t.checked;
   else if (role === 'choice') {
     const qq = round.questions.find((x) => x.id === q);
-    if (qq.multi) a.choices = [...document.querySelectorAll(`input[name="${q}"]:checked`)].map((i) => i.value); else a.choice = t.value;
+    // the box is the truth: a radio that fires input while unchecked is the user clearing it (see the click handler)
+    if (qq.multi) { const had = (a.choices || []).length; a.choices = [...document.querySelectorAll(`input[name="${q}"]:checked`)].map((i) => i.value); a.unticked = a.choices.length ? false : had ? true : a.unticked; }
+    else { a.choice = t.checked ? t.value : null; a.unticked = !t.checked; }
     a.dontKnow = false; a.skip = false; for (const r of ['dontKnow', 'skip']) { const f = document.querySelector(`input[data-role=${r}][data-q="${q}"]`); if (f) f.checked = false; }
   }
   refresh();
+});
+// Untick. A radio cannot be cleared by the browser, so a click on the answer that is already chosen clears it. The click
+// runs before the input event of a fresh pick, so the draft still holds the old answer exactly when this is a second click.
+// Browsers do nothing when Space is pressed on a radio that is already checked, so Space and Enter are turned into a click
+// here: on a focused, chosen answer either key clears it, on any other answer either key picks it, as Space already did.
+document.addEventListener('click', (e) => {
+  const t = e.target;
+  if (!(t instanceof HTMLInputElement) || t.type !== 'radio' || t.dataset.role !== 'choice' || t.disabled) return;
+  const a = A(t.dataset.q);
+  if (a.choice === t.value) { a.choice = null; a.unticked = true; t.checked = false; refresh(); }
+});
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if ((e.key === 'Enter' || e.key === ' ') && !e.isComposing && !e.repeat && t instanceof HTMLInputElement && t.type === 'radio' && t.dataset.role === 'choice' && !t.disabled) { e.preventDefault(); t.click(); }
 });
 document.addEventListener('focusin', (e) => { const c = e.target.closest && e.target.closest('.hs-card'); if (c) setActive(c.id); });
 document.addEventListener('pointerdown', (e) => { const c = e.target.closest && e.target.closest('.hs-card'); if (c) setActive(c.id); });
@@ -641,10 +660,10 @@ document.addEventListener('click', (e) => {
   const act = b.dataset.act, q = b.dataset.q;
   if (act === 'send') send();
   else if (act === 'theme') { themeChoice = curTheme() === 'light' ? 'dark' : 'light'; store.set('hs:theme', themeChoice); applyTheme(); }
-  else if (act === 'accept-low') { round.questions.filter((x) => x.stakes === 'low' && !x.noRecommendation && x.kind !== 'confirm' && stance(x, draft.answers[x.id]) === 'open').forEach((x) => { const a = A(x.id); if (x.kind === 'free') a.text = String(x.recommended); else if (x.multi) a.choices = arr(x.recommended); else a.choice = arr(x.recommended)[0]; }); rerenderMain(); }
+  else if (act === 'accept-low') { round.questions.filter((x) => x.stakes === 'low' && !x.noRecommendation && x.kind !== 'confirm' && stance(x, draft.answers[x.id]) === 'open').forEach((x) => { const a = A(x.id); if (x.kind === 'free') a.text = String(x.recommended); else if (x.multi) a.choices = arr(x.recommended); else a.choice = arr(x.recommended)[0]; a.unticked = false; }); rerenderMain(); }
   else if (act === 'next-open') { const q = round.questions.find((x) => stance(x, draft.answers[x.id]) === 'open'); if (q) { const el = document.getElementById(q.id); setActive(q.id); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); const t = el.querySelector('textarea, input'); if (t) t.focus({ preventScroll: true }); } }
   else if (act === 'jump') { const sd = document.querySelector('.hs-side'); if (sd) sd.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-  else if (act === 'use-reco') { const qq = round.questions.find((x) => x.id === q); const a = A(q); const r = arr(qq.recommended); if (qq.multi) a.choices = r; else a.choice = r[0]; a.dontKnow = false; rerenderMain(); }
+  else if (act === 'use-reco') { const qq = round.questions.find((x) => x.id === q); const a = A(q); const r = arr(qq.recommended); if (qq.multi) a.choices = r; else a.choice = r[0]; a.dontKnow = false; a.unticked = false; rerenderMain(); }
   else if (act === 'use-reco-text') { const qq = round.questions.find((x) => x.id === q); A(q).text = String(qq.recommended); A(q).dontKnow = false; rerenderMain(); }
   else if (act === 'tab') { document.querySelectorAll('.tab2').forEach((t) => t.setAttribute('aria-selected', t === b)); document.querySelectorAll('.tabpane').forEach((p) => p.classList.toggle('on', p.id === 'pane-' + b.dataset.tab)); store.set(`hs:tab:${S.session}`, b.dataset.tab); fillPane(b.dataset.tab); }
   else if (act === 'copy-ledger') { const done = () => { const c = document.getElementById('copied'); if (c) c.textContent = 'Copied.'; }; if (navigator.clipboard) navigator.clipboard.writeText(S.ledgerMd).then(done, () => { selectLedger(); }); else selectLedger(); }

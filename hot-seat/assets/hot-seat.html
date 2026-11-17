@@ -45,7 +45,7 @@ body{font:15px/1.5 var(--sans);-webkit-text-size-adjust:100%;overflow:hidden}
 h1,h2,h3,h4{margin:0;line-height:1.25;color:var(--hi)}
 p{margin:0 0 .6em}
 strong,b{color:var(--hi)}
-code{font-family:var(--mono);font-size:.88em;background:var(--opt);border:1px solid var(--line);padding:.04em .32em;border-radius:5px}
+code{font-family:var(--mono);font-size:max(12px,.88em);background:var(--opt);border:1px solid var(--line);padding:.04em .32em;border-radius:5px}
 button{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 [hidden]{display:none!important}
@@ -64,7 +64,7 @@ button{font:inherit;color:inherit}
 .hs-brand i{width:10px;height:10px;border-radius:50%;background:var(--acc);flex:none}
 .hs-topic{flex:1 1 240px;color:var(--fg);font-size:14px}
 .hs-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-@media (max-width:640px){.hs-brand{order:1}.themesw{order:2;margin-left:auto}.hs-topic{order:3;flex-basis:100%}.hs-chips{order:4}}
+@media (max-width:640px){.hs-brand{order:1}.jump{order:2;margin-left:auto}.themesw{order:3}.hs-topic{order:4;flex-basis:100%}.hs-chips{order:5}}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:0 9px;border-radius:999px;border:1px solid var(--line);font:400 12px/1.7 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);background:transparent;white-space:nowrap}
 .chip.acc{border-color:var(--acc);color:var(--acc)}
 .chip.ok{border-color:var(--ok);color:var(--ok)}
@@ -111,7 +111,7 @@ button.chip{cursor:pointer;min-height:32px;background:none}
 .fold-sub:first-child{margin-top:0;padding-top:0;border-top:0}
 
 /* cards */
-.hs-card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.hs-card{scroll-margin-top:14px;position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
 .hs-card[data-state=sent]{opacity:.9}
 .hs-card[data-active]{border-color:color-mix(in oklab,var(--acc) 55%,var(--line))}
 .hs-card[data-active]::before,.hs-card[data-active]::after{content:"";position:absolute;width:12px;height:12px;border:2px solid var(--acc);pointer-events:none}
@@ -149,6 +149,7 @@ textarea.hs-text::placeholder{color:var(--mute);opacity:1}
 textarea.hs-text.big{min-height:92px}
 .hs-foot{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-start}
 .hs-foot textarea{flex:1 1 260px;width:auto}
+.hs-foot textarea.big{flex-basis:100%}
 .hs-flags{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;min-height:40px}
 .flag{display:inline-flex;align-items:center;gap:8px;min-height:32px;cursor:pointer;user-select:none;font-size:13.5px;color:var(--mute);white-space:nowrap}
 .flag input{appearance:none;-webkit-appearance:none;position:relative;flex:none;margin:0;width:28px;height:16px;border-radius:999px;border:1px solid var(--mute);background:var(--opt);cursor:pointer;transition:background .12s,border-color .12s}
@@ -193,8 +194,8 @@ blockquote{margin:.3em 0;padding:.2em .8em;border-left:3px solid var(--line);col
 
 /* side rail */
 .hs-side{display:flex;flex-direction:column;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
-.tabs2{display:flex;justify-content:space-between;gap:2px;border-bottom:1px solid var(--line);margin:0 -2px}
-.tab2{flex:0 1 auto;min-height:36px;padding:0 5px;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;background:none;color:var(--mute);cursor:pointer;font:600 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.tabs2{display:flex;flex-wrap:wrap;justify-content:space-between;gap:0 2px;border-bottom:1px solid var(--line);margin:0 -2px}
+.tab2{flex:0 1 auto;min-height:36px;padding:0 4px;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;background:none;color:var(--mute);cursor:pointer;font:600 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
 .tab2:hover{color:var(--fg)}
 .tab2[aria-selected=true]{color:var(--hi);border-bottom-color:var(--acc)}
 .tab2 .n{margin-left:5px;font-weight:400}
@@ -320,8 +321,8 @@ function header() {
       ${chip('mute', modeLabel, `${S.mode.value === 'docs' ? 'Paper trail on' : 'Nothing is written to your workspace'}: ${S.mode.reason}`)}
       ${chip('acc', S.status === 'done' ? 'Session complete' : `Round ${round.n}`)}
       ${chip('mute', `${settledN} settled${parkedN ? `, ${parkedN} parked` : ''} of ${S.tree.length}`)}
-      <button type="button" class="chip acc jump" data-act="jump" aria-label="Jump to the tree, ledger and terms">Overview</button>
     </div>
+    <button type="button" class="chip acc jump" data-act="jump" aria-label="Jump to the tree, ledger and terms">Overview</button>
     <button type="button" class="themesw" role="switch" aria-checked="${curTheme() === 'light'}" aria-label="Light mode" title="Switch between dark and light" data-act="theme">${ICON.moon}${ICON.sun}<span class="thumb"></span></button>
   </header>`;
 }
@@ -659,7 +660,6 @@ refresh();
 fillPane(store.get(`hs:tab:${S.session}`) || 'tree');
 // the rail's height follows the space left by the top bar and the bottom bar
 { const set = () => document.documentElement.style.setProperty('--chrome', ((document.getElementById('top') || {}).offsetHeight || 0) + ((document.getElementById('bar') || {}).offsetHeight || 0) + 'px'); set(); if (window.ResizeObserver) { const ro = new ResizeObserver(set); ['top', 'bar'].forEach((i) => { const el = document.getElementById(i); if (el) ro.observe(el); }); } }
-scroller().focus({ preventScroll: true }); // so PageDown and the space bar scroll the cards right away
 })();
 </script>
 </body>

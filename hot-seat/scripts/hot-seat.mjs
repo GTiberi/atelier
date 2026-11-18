@@ -19,9 +19,12 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHELL = path.join(HERE, '..', 'assets', 'hot-seat.html');
+// Colour mode of the page: 'dark' or 'light' once the user has chosen one, 'auto' (follow the system) until then.
+// Sessions made before the switch carry a theme menu name (for example 'dim'): those count as 'auto'.
+const MODES = ['dark', 'light'];
 
 // ---------------------------------------------------------------- contract
-// Canonical rule list. The page renders it verbatim on its Contract tab, so the user can
+// Canonical rule list. The page renders it verbatim on its Rules tab, so the user can
 // see which rules this session runs under (the "did the skill load its dependencies" check).
 const CONTRACT = {
   version: '1',
@@ -155,7 +158,7 @@ function preflight(args) {
     lavishDirIgnored: ignored,
     node: process.version,
     contract: { source: 'inline', version: CONTRACT.version, rules: CONTRACT.rules.length },
-    note: 'upstream skills are optional: the contract is inline in SKILL.md and on the page Contract tab',
+    note: 'upstream skills are optional: the contract is inline in SKILL.md and on the page Rules tab',
   };
   console.log(JSON.stringify(out, null, 2));
 }
@@ -247,7 +250,7 @@ function init(args) {
   fs.mkdirSync(workdir, { recursive: true });
   const s = {
     schema: 'hot-seat/1', session, createdAt: now(), updatedAt: now(),
-    topic: '', title: '', invokedTopic: args.topic && args.topic !== true && !args.chat ? String(args.topic) : '', theme: 'dim',
+    topic: '', title: '', invokedTopic: args.topic && args.topic !== true && !args.chat ? String(args.topic) : '', theme: 'auto',
     mode: { value: mode, detected, reason: d.reason, signals: d.signals, overridden: mode !== detected },
     repo: { cwd, root: d.root, gitRoot: d.gitRoot, contextFiles: d.contextFiles.map((f) => path.relative(d.root, f) || f) },
     contract: { source: 'inline', version: CONTRACT.version, rules: CONTRACT.rules, upstream: findUpstream(cwd, d.root) },
@@ -271,6 +274,7 @@ function init(args) {
     intakeFollowUp(s, r, []);
     s.round = 1;
   }
+  s.rounds[0].seen = seenOf(s);
   const p = path.join(workdir, 'state.json');
   if (s.htmlPath) fs.mkdirSync(path.dirname(s.htmlPath), { recursive: true });
   writeJSON(p, s);
@@ -349,12 +353,16 @@ function record(args) {
     if (!r) { lines.push(`skipped payload for unknown round ${pl.round}`); continue; }
     const stale = pl.round !== s.round;
     r.receivedAt = now();
+    if (MODES.includes(pl.theme) && pl.theme !== s.theme) { s.theme = pl.theme; lines.push(`colour mode: ${pl.theme} (the user's choice, kept for the next rounds)`); }
     if (pl.steer && pl.steer.trim()) r.steer = (r.steer ? r.steer + '\n' : '') + pl.steer.trim();
     for (const a of pl.answers || []) {
       const q = r.questions.find((x) => x.id === a.id);
       if (!q) { lines.push(`skipped answer for unknown question ${a.id}`); continue; }
       q.answer = { choice: a.choice ?? null, choices: a.choices ?? [], text: a.text || '', dontKnow: !!a.dontKnow, prototype: !!a.prototype, skip: !!a.skip, at: now() };
       q.answer.stance = stanceOf(q, q.answer);
+      // the user picked an answer and then cleared it: the question is open again, and says how it got there. Only while it is
+      // still open: a flag that arrives next to an answer (words, a switch) is stale and is not kept.
+      if (a.unticked === true && q.answer.stance === 'open') q.answer.unticked = true;
     }
     const c = {};
     for (const q of r.questions) { const st = q.answer ? q.answer.stance : 'open'; c[st] = (c[st] || 0) + 1; }
@@ -368,6 +376,7 @@ function record(args) {
       if (a.text) line += `\n      words: ${JSON.stringify(a.text)}`;
       if (a.prototype) line += '\n      flag: needs a prototype';
       if (a.skip) line += '\n      flag: OUT OF SCOPE for the user (park the node, reason: out of scope)';
+      if (a.unticked) line += '\n      flag: unticked - the user picked an answer, then cleared it. It counts as unanswered; ask it again, smaller or differently.';
       lines.push('  ' + line);
     }
     if (r.steer) lines.push(`  steer: ${JSON.stringify(r.steer)}`);
@@ -403,6 +412,35 @@ function intakeFollowUp(s, r, lines) {
     const dm = s.tree.find((x) => x.id === 'dm');
     Object.assign(dm, { state: 'settled', decision: `Mode: ${mv === 'docs' ? 'codebase (writes CONTEXT.md / ADRs)' : 'stateless (writes nothing to the workspace)'}${s.mode.overridden ? ' - user overrode the detected mode' : ''}` });
   }
+}
+
+// ---------------------------------------------------------------- what changed since the round before
+// Every round carries `seen`: a fingerprint of the tree, ledger, terms, facts and ADRs as the user was shown them. The next
+// round is compared with it and keeps the result as `changes`, which the page uses for its "new" and "changed" marks. The
+// marks therefore come from the recorded history, and a session made before this existed simply has no marks for one round.
+// Round 1 is the intake page, so the first interview round (2) has nothing to be compared with: marks start at round 3.
+const MARKS_FROM_ROUND = 3;
+const fp = (o) => crypto.createHash('sha1').update(JSON.stringify(o)).digest('hex').slice(0, 10);
+function seenOf(s) {
+  const o = { tree: {}, ledger: {}, terms: {}, facts: {}, adrs: {} };
+  for (const n of s.tree) {
+    o.tree[n.id] = fp([n.state, n.title, n.parent || '', n.decision || '', n.parkedReason || '']);
+    if (n.state === 'settled' && n.id !== 'dm') o.ledger[n.id] = fp(n.decision || '');
+  }
+  for (const g of s.glossary) o.terms[g.term] = fp([g.status, g.definition, g.fr || '', !!g.written, g.note || '', g.conflict || '', g.avoid || []]);
+  for (const f of s.facts) o.facts[f.id] = fp([f.state, f.title, f.result || '']);
+  for (const a of s.adrs) o.adrs[a.title] = fp([a.status, a.file || '', a.gates || {}, a.skipReason || '']);
+  return o;
+}
+function changesSince(prev, now, since) {
+  if (!prev) return null;
+  const out = { since };
+  for (const k of Object.keys(now)) {
+    const m = {};
+    for (const [id, h] of Object.entries(now[k])) { const p = (prev[k] || {})[id]; if (p === undefined) m[id] = 'new'; else if (p !== h) m[id] = 'changed'; }
+    if (Object.keys(m).length) out[k] = m;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- next (merge + validate + build)
@@ -557,6 +595,8 @@ function validateAndAdvance(s, patch) {
   }
 
   if (errors.length) return { errors, warnings };
+  round.seen = seenOf(s);
+  round.changes = round.n >= MARKS_FROM_ROUND ? changesSince(prevRound && prevRound.seen, round.seen, prevRound.n) : null;
   s.rounds.push(round);
   s.round = round.n;
   s.status = patch.confirm ? 'confirming' : patch.finish ? 'done' : 'asking';
@@ -587,6 +627,7 @@ function next(args) {
   console.log(`round ${r.n} built: ${r.questions.length} question(s)${r.questions.length ? ` (${r.questions[0].id}-${r.questions[r.questions.length - 1].id})` : ''}, status ${s.status}`);
   console.log(`tree: ${s.tree.length} nodes (${Object.entries(c).map(([k, v]) => `${v} ${k}`).join(', ')})`);
   if (r.writes.length) console.log('written to the workspace: ' + r.writes.map((w) => `${w.file} (${w.status} +${w.added} -${w.removed})`).join(', '));
+  if (r.changes) { const parts = Object.entries(r.changes).filter(([k]) => k !== 'since').map(([k, m]) => `${k} ${Object.values(m).filter((x) => x === 'new').length} new, ${Object.values(m).filter((x) => x === 'changed').length} changed`); console.log(`marked on the page, since round ${r.changes.since}: ${parts.join('; ') || 'nothing'}`); }
   if (res.warnings.length) console.log('warnings (shown on the page too):\n- ' + res.warnings.join('\n- '));
   console.log(`page: ${htmlPathOf(s)}`);
 }
@@ -673,12 +714,12 @@ function ledger(args) {
 // ---------------------------------------------------------------- build
 function build(s) {
   const shell = fs.readFileSync(SHELL, 'utf8');
-  const view = { ...s, ledgerMd: ledgerMarkdown(s) };
+  const view = { ...s, rounds: s.rounds.map(({ seen, ...r }) => r), ledgerMd: ledgerMarkdown(s) };
   const json = JSON.stringify(view).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
   const title = `hot-seat${(s.title || s.topic) ? ' - ' + (s.title || s.topic).slice(0, 60).replace(/[<>&"]/g, '') : ''}`;
   let html = shell.replace(/<script id="hs-state" type="application\/json">[\s\S]*?<\/script>/, () => `<script id="hs-state" type="application/json">${json}</script>`);
   html = html.replace(/<title>[\s\S]*?<\/title>/, () => `<title>${title}</title>`);
-  html = html.replace(/<html lang="en" data-theme="[^"]*"/, () => `<html lang="en" data-theme="${s.theme || 'dim'}"`);
+  html = html.replace(/<html lang="en" data-theme="[^"]*"/, () => `<html lang="en" data-theme="${MODES.includes(s.theme) ? s.theme : 'auto'}"`);
   writeAtomic(htmlPathOf(s), html);
 }
 

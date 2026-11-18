@@ -1,6 +1,6 @@
 # hot-seat
 
-The [grill-me](https://www.aihero.dev/skills-grill-me) interview with a UI. Every round is a [Lavish](https://github.com/kunchenguid/lavish-axi) page: one card per question with a recommended answer, a free-text box, "I don't know" and "needs a prototype"; a live design tree, the decisions ledger, the resolved terms and ADR candidates on the side. The agent reads your answers back with `lavish-axi poll`, recomputes the frontier and re-renders the same page.
+The [grill-me](https://www.aihero.dev/skills-grill-me) interview with a UI. Every round is a [Lavish](https://github.com/kunchenguid/lavish-axi) page: one card per question with a recommended answer, a box for your own words and small switches for "I don't know", "needs a prototype" and "out of scope"; a live design tree with the last settled decisions, the decisions ledger, the resolved terms and ADR candidates on the side. A chosen answer can be cleared with a second click, and from the third round on the page marks what is new or changed since the round before (a round with nothing to compare with says so instead). The agent reads your answers back with `lavish-axi poll`, recomputes the frontier and re-renders the same page.
 
 - **No codebase** (not a git repo, no source files, no CONTEXT.md): stateless, like grill-me. The session files live in a temp directory; nothing is written to your folder.
 - **In a codebase**: also the [grill-with-docs](https://www.aihero.dev/skills-grill-with-docs) paper trail. Resolved terms go into `CONTEXT.md` as they resolve, ADRs into `docs/adr/` only when all three gates hold (hard to reverse, surprising without context, real trade-off). The page shows a diff of what was written after each round.
@@ -37,7 +37,7 @@ Use the space-separated form: repeating `--skill=a --skill=b` installs the whole
 |---|---|
 | `SKILL.md` | the contract (interview, steering, paper trail, ledger) and the run-book |
 | `scripts/hot-seat.mjs` | zero-dependency helper: `preflight`, `init`, `record`, `next`, `ledger`, `build`. Detects the mode, validates every round (refuses questions without a recommendation, off-frontier questions, unsupported ADR or glossary claims), diffs CONTEXT.md and ADRs, builds the page |
-| `assets/hot-seat.html` | the page template (inline SVG tree, no Mermaid, phone-safe, no horizontal overflow) |
+| `assets/hot-seat.html` | the page template: one self-contained file (inline styles and script, nothing fetched, works offline), a calm dark look with a light mode behind one switch in the top bar (it follows the system until you choose), phone-safe, no horizontal overflow; the document itself scrolls (the keys work from the first moment and Lavish finds every control reachable) with the two bars pinned |
 | `references/` | patch format, paper-trail formats, chat fallback, upstream NOTICE (MIT) |
 
 The helper only runs `git`, `lavish-axi` and `node`; it never touches the network and writes only inside `.lavish/` (codebase mode), a temp directory (stateless mode), and, when you ask for them, `--out` files.

@@ -329,6 +329,9 @@ const CH = round.changes && round.n > 1 ? round.changes : null;
 const markOf = (pane, id) => (CH && CH[pane] && CH[pane][id]) || '';
 const mark = (kind) => kind === 'new' ? '<span class="mk new">new</span>' : kind === 'changed' ? '<span class="mk chg">changed</span>' : '';
 const mattr = (kind) => (kind ? ` data-mark="${kind}"` : '');
+// An interview round that has nothing recorded to compare with (the first one after the intake, or the first one of a session
+// made before marks existed) has no marks, so it says why: otherwise the page would look as if the feature were missing.
+const NO_MARKS = 'Nothing is marked in this round, because there is nothing recorded to compare it with yet. From the next round on, what is new or changed since the round before is marked.';
 const PANE_NAME = { tree: 'Tree', ledger: 'Ledger', terms: 'Terms', adrs: 'ADRs', facts: 'Facts' };
 const markCount = (pane) => (CH && CH[pane] ? Object.keys(CH[pane]).length : 0);
 const newAssumptions = () => (CH ? (S.assumptions || []).filter((a) => a.round === round.n) : []);
@@ -474,7 +477,8 @@ function mainCol() {
   if (S.status === 'done') {
     p.push(`<section class="panel"><h2>Session complete</h2>${md(round.summary || 'Shared understanding confirmed.')}<p class="muted small">Nothing was acted on. Copy the ledger from the Ledger tab and hand it to whatever comes next, in this same conversation.</p></section>`);
   } else {
-    const sum = anyMarks() ? `<p class="mk-sum">${markSummary()}</p>` : '';
+    const noCompare = round.n > 1 && !CH && !round.questions.some((q) => q.kind === 'confirm');
+    const sum = anyMarks() ? `<p class="mk-sum">${markSummary()}</p>` : noCompare ? `<p class="mk-sum">${NO_MARKS}</p>` : '';
     if (round.note || sum) p.push(`<div class="strip"><span class="lab">${round.n === 1 ? 'Before we start' : 'Since your last answers'}</span>${round.note ? md(round.note) : ''}${sum}</div>`);
     if (round.summary) p.push(`<section class="panel"><h2>Shared understanding, in my words</h2>${md(round.summary)}${(S.assumptions || []).length ? `<h3 style="font-size:14.5px;margin-top:8px">Inferred by me, not said by you: check these</h3><ul>${S.assumptions.map((a) => `<li>${inline(a.text)}</li>`).join('')}</ul>` : ''}</section>`);
     if (sentAt) p.push('<div class="hs-hint" role="status">Round sent. I am working on it: this page will reload with the next round.</div>');

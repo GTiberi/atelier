@@ -502,9 +502,10 @@ function treeHtml() {
   };
   return `<ul class="tree" aria-label="Design tree of decisions">${(kids._ || []).map(li).join('')}</ul>`;
 }
-// the last decisions settled: nodes ranked by the latest round that asked about them, then by tree order
+// the last decisions settled: nodes ranked by the latest interview round that asked about them, then by tree order. The intake
+// and the confirm card do not count: the confirm card sits on the root node, which would otherwise always rank first.
 function lastSettled() {
-  const asked = {}; S.rounds.forEach((r) => r.questions.forEach((q) => { asked[q.node] = Math.max(asked[q.node] || 0, r.n); }));
+  const asked = {}; S.rounds.forEach((r) => { if (r.n > 1) r.questions.forEach((q) => { if (q.kind !== 'confirm') asked[q.node] = Math.max(asked[q.node] || 0, r.n); }); });
   const idx = new Map(S.tree.map((n, i) => [n.id, i]));
   return S.tree.filter((n) => n.state === 'settled' && n.id !== 'dm' && n.decision).sort((a, b) => ((asked[b.id] || 0) - (asked[a.id] || 0)) || idx.get(b.id) - idx.get(a.id)).slice(0, 3);
 }

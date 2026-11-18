@@ -108,6 +108,9 @@ button.chip{cursor:pointer;min-height:32px;background:none}
 /* a label in a fold line wraps between words, never inside one; a short fixed label (Round 2, Fact-finding) stays whole and the text beside it gives way */
 .fold>summary>strong{overflow-wrap:normal}
 .fold>summary>strong.lbl{flex:none;white-space:nowrap}
+/* a line that is too full wraps its tag onto the next line instead of crushing the text beside the label */
+.fold>summary{flex-wrap:wrap}
+.fold>summary>.muted{flex:1 1 14ch}
 .fold-body{border-top:1px solid var(--line);padding:10px 14px 12px}
 .fold.warn{border-left:3px solid var(--warn)}
 .fold-body ul{margin:.2em 0;padding-left:1.2em}
@@ -339,11 +342,12 @@ const PANE_NAME = { tree: 'Tree', ledger: 'Ledger', terms: 'Terms', adrs: 'ADRs'
 const markCount = (pane) => (CH && CH[pane] ? Object.keys(CH[pane]).length : 0);
 const newAssumptions = () => (CH ? (S.assumptions || []).filter((a) => a.round === round.n) : []);
 const anyMarks = () => !!CH && (Object.keys(PANE_NAME).some((k) => markCount(k)) || newAssumptions().length > 0);
+const markWords = (nw, ch) => [nw ? nw + ' new' : '', ch ? ch + ' changed' : ''].filter(Boolean).join(', ');   // "1 new, 1 changed", "2 new", "1 changed"
 function markSummary() {
   // the new assumptions are ledger entries too (Derived by me, not said by you)
   const parts = Object.keys(PANE_NAME).map((k) => {
     const v = Object.values((CH[k]) || {}), nw = v.filter((x) => x === 'new').length + (k === 'ledger' ? newAssumptions().length : 0), ch = v.filter((x) => x === 'changed').length;
-    return nw || ch ? `${PANE_NAME[k]} <b>${[nw ? nw + ' new' : '', ch ? ch + ' changed' : ''].filter(Boolean).join(', ')}</b>` : '';
+    return nw || ch ? `${PANE_NAME[k]} <b>${markWords(nw, ch)}</b>` : '';
   }).filter(Boolean);
   return `Since round ${CH.since}: ${parts.join(' · ')}. Marked <span class="mk new">new</span> or <span class="mk chg">changed</span> in the rail${markCount('facts') ? ' and in Fact-finding' : ''}.`;
 }
@@ -460,8 +464,8 @@ function factsFold() {
   const running = S.facts.filter((f) => f.state === 'running');
   const done = S.facts.filter((f) => f.state === 'done');
   if (!running.length && !done.length) return '';
-  const nw = markCount('facts');
-  return `<details class="fold"><summary><strong class="lbl">Fact-finding</strong><span class="muted">${done.length} found${running.length ? `, ${running.length} running` : ''}: not asked of you</span>${nw ? `<span class="mk new" title="${nw} new or changed since round ${CH.since}">${nw} new</span>` : ''}</summary><div class="fold-body">
+  const kinds = [...running, ...done].map((f) => markOf('facts', f.id)), nw = kinds.filter((k) => k === 'new').length, ch = kinds.filter((k) => k === 'changed').length;
+  return `<details class="fold"><summary><strong class="lbl">Fact-finding</strong><span class="muted">${done.length} found${running.length ? `, ${running.length} running` : ''}: not asked of you</span>${nw || ch ? `<span class="mk ${nw ? 'new' : 'chg'}" title="${markWords(nw, ch)} since round ${CH.since}">${markWords(nw, ch)}</span>` : ''}</summary><div class="fold-body">
     ${running.map((f) => `<div class="fold-sub"${mattr(markOf('facts', f.id))}><span class="dot-run pulse"></span> <strong>Looking up:</strong> ${inline(f.title)} ${mark(markOf('facts', f.id))} <span class="muted small">(questions that depend on it wait for a later round)</span></div>`).join('')}
     ${done.map((f) => `<div class="fold-sub small"${mattr(markOf('facts', f.id))}><strong>${inline(f.title)}</strong> ${mark(markOf('facts', f.id))}<br><span class="muted">${inline(f.result || '')}</span></div>`).join('')}</div></details>`;
 }

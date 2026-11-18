@@ -105,6 +105,9 @@ button.chip{cursor:pointer;min-height:32px;background:none}
 .fold>summary::before{content:"";flex:none;width:6px;height:6px;border:solid var(--mute);border-width:0 1.5px 1.5px 0;transform:rotate(-45deg);margin:0 3px 0 1px;transition:transform .12s}
 .fold[open]>summary::before{transform:rotate(45deg)}
 .fold>summary .muted{font-size:13.5px}
+/* a label in a fold line wraps between words, never inside one; a short fixed label (Round 2, Fact-finding) stays whole and the text beside it gives way */
+.fold>summary>strong{overflow-wrap:normal}
+.fold>summary>strong.lbl{flex:none;white-space:nowrap}
 .fold-body{border-top:1px solid var(--line);padding:10px 14px 12px}
 .fold.warn{border-left:3px solid var(--warn)}
 .fold-body ul{margin:.2em 0;padding-left:1.2em}
@@ -187,7 +190,7 @@ figcaption{color:var(--mute);font-size:13.5px;margin-top:4px}
 @media (max-width:640px){.hs-bar .prog .hide-s{display:none}.hs-bar .btn2{flex:1 1 auto}}
 
 /* history */
-.hs-hist{display:grid;gap:10px}
+.hs-hist{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
 .hs-hq{border-top:1px solid var(--line);padding-top:8px}
 .hs-hq:first-child{border-top:0;padding-top:0}
 .hs-hq q{quotes:"\201C" "\201D";font-style:italic}
@@ -426,7 +429,7 @@ function historyRound(r) {
   }).join('');
   const c = {};
   r.questions.forEach((q) => { const s = q.answer ? q.answer.stance : 'open'; c[s] = (c[s] || 0) + 1; });
-  return `<details class="fold hs-round"><summary><strong>Round ${r.n}</strong><span class="muted">${r.questions.length} question${r.questions.length === 1 ? '' : 's'}: ${Object.entries(c).map(([s, n]) => `${n} ${(STANCE[s] || [0, s])[1].toLowerCase()}`).join(', ')}</span></summary>
+  return `<details class="fold hs-round"><summary><strong class="lbl">Round ${r.n}</strong><span class="muted">${r.questions.length} question${r.questions.length === 1 ? '' : 's'}: ${Object.entries(c).map(([s, n]) => `${n} ${(STANCE[s] || [0, s])[1].toLowerCase()}`).join(', ')}</span></summary>
     <div class="fold-body hs-hist">${r.note ? `<div class="small muted">${md(r.note)}</div>` : ''}${r.steer ? `<div><span class="small muted">Your steering:</span><blockquote>${esc(r.steer)}</blockquote></div>` : ''}${rows}${writesBody(r)}</div></details>`;
 }
 
@@ -438,7 +441,7 @@ function writesBody(r) {
 function writesFold(r) {
   if (S.mode.value !== 'docs') return '';
   if (!r.writes || !r.writes.length) return r.n > 1 ? `<div class="hs-hint">Paper trail: nothing was written to the repository since your last answers.</div>` : '';
-  return `<details class="fold"><summary><strong>Paper trail</strong><span class="muted">${r.writes.length} file${r.writes.length === 1 ? '' : 's'} written since your last answers</span></summary><div class="fold-body">${writesBody(r)}</div></details>`;
+  return `<details class="fold"><summary><strong class="lbl">Paper trail</strong><span class="muted">${r.writes.length} file${r.writes.length === 1 ? '' : 's'} written since your last answers</span></summary><div class="fold-body">${writesBody(r)}</div></details>`;
 }
 
 // ---------------------------------------------------------------- main column
@@ -458,7 +461,7 @@ function factsFold() {
   const done = S.facts.filter((f) => f.state === 'done');
   if (!running.length && !done.length) return '';
   const nw = markCount('facts');
-  return `<details class="fold"><summary><strong>Fact-finding</strong><span class="muted">${done.length} found${running.length ? `, ${running.length} running` : ''}: not asked of you</span>${nw ? `<span class="mk new" title="${nw} new or changed since round ${CH.since}">${nw} new</span>` : ''}</summary><div class="fold-body">
+  return `<details class="fold"><summary><strong class="lbl">Fact-finding</strong><span class="muted">${done.length} found${running.length ? `, ${running.length} running` : ''}: not asked of you</span>${nw ? `<span class="mk new" title="${nw} new or changed since round ${CH.since}">${nw} new</span>` : ''}</summary><div class="fold-body">
     ${running.map((f) => `<div class="fold-sub"${mattr(markOf('facts', f.id))}><span class="dot-run pulse"></span> <strong>Looking up:</strong> ${inline(f.title)} ${mark(markOf('facts', f.id))} <span class="muted small">(questions that depend on it wait for a later round)</span></div>`).join('')}
     ${done.map((f) => `<div class="fold-sub small"${mattr(markOf('facts', f.id))}><strong>${inline(f.title)}</strong> ${mark(markOf('facts', f.id))}<br><span class="muted">${inline(f.result || '')}</span></div>`).join('')}</div></details>`;
 }

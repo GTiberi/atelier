@@ -623,7 +623,7 @@ function scheduleDraftQueue() {
   }, 700);
 }
 function payload(final) {
-  const answers = round.questions.map((q) => { const a = draft.answers[q.id] || {}; const o = { id: q.id, choice: a.choice || null, choices: a.choices || [], text: (a.text || '').trim(), dontKnow: !!a.dontKnow, prototype: !!a.prototype, skip: !!a.skip }; if (a.unticked && !o.choice && !o.choices.length) o.unticked = true; return o; });
+  const answers = round.questions.map((q) => { const a = draft.answers[q.id] || {}; const o = { id: q.id, choice: a.choice || null, choices: a.choices || [], text: (a.text || '').trim(), dontKnow: !!a.dontKnow, prototype: !!a.prototype, skip: !!a.skip }; if (a.unticked && stance(q, a) === 'open') o.unticked = true; return o; });   // only while the card still counts as open, by the rule that counts answered cards
   const pl = { v: 1, session: S.session, round: round.n, final: !!final, steer: (draft.steer || '').trim(), answers };
   if (themeChoice) pl.theme = themeChoice;
   return pl;

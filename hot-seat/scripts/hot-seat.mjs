@@ -359,9 +359,10 @@ function record(args) {
       const q = r.questions.find((x) => x.id === a.id);
       if (!q) { lines.push(`skipped answer for unknown question ${a.id}`); continue; }
       q.answer = { choice: a.choice ?? null, choices: a.choices ?? [], text: a.text || '', dontKnow: !!a.dontKnow, prototype: !!a.prototype, skip: !!a.skip, at: now() };
-      // the user picked an answer and then cleared it: the question is open again, and says how it got there
-      if (a.unticked === true) q.answer.unticked = true;
       q.answer.stance = stanceOf(q, q.answer);
+      // the user picked an answer and then cleared it: the question is open again, and says how it got there. Only while it is
+      // still open: a flag that arrives next to an answer (words, a switch) is stale and is not kept.
+      if (a.unticked === true && q.answer.stance === 'open') q.answer.unticked = true;
     }
     const c = {};
     for (const q of r.questions) { const st = q.answer ? q.answer.stance : 'open'; c[st] = (c[st] || 0) + 1; }

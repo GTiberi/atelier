@@ -37,7 +37,7 @@ Use the space-separated form: repeating `--skill=a --skill=b` installs the whole
 |---|---|
 | `SKILL.md` | the contract (interview, steering, paper trail, ledger) and the run-book |
 | `scripts/hot-seat.mjs` | zero-dependency helper: `preflight`, `init`, `record`, `next`, `ledger`, `build`. Detects the mode, validates every round (refuses questions without a recommendation, off-frontier questions, unsupported ADR or glossary claims), diffs CONTEXT.md and ADRs, builds the page |
-| `assets/hot-seat.html` | the page template: one self-contained file (inline styles and script, nothing fetched, works offline), a calm dark look with a light mode behind one switch in the top bar (it follows the system until you choose), phone-safe, no horizontal overflow |
+| `assets/hot-seat.html` | the page template: one self-contained file (inline styles and script, nothing fetched, works offline), a calm dark look with a light mode behind one switch in the top bar (it follows the system until you choose), phone-safe, no horizontal overflow; the document itself scrolls (the keys work from the first moment and Lavish finds every control reachable) with the two bars pinned |
 | `references/` | patch format, paper-trail formats, chat fallback, upstream NOTICE (MIT) |
 
 The helper only runs `git`, `lavish-axi` and `node`; it never touches the network and writes only inside `.lavish/` (codebase mode), a temp directory (stateless mode), and, when you ask for them, `--out` files.

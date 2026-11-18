@@ -26,7 +26,7 @@
   --r:8px;
   --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
-  --chrome:132px;
+  --top-h:56px; --bar-h:64px;
 }
 :root[data-theme=light]{
   color-scheme:light;
@@ -37,8 +37,12 @@
   --hl:color-mix(in oklab,var(--hi) 6%,transparent);
 }
 *,*::before,*::after{box-sizing:border-box}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--fg)}
-body{font:15px/1.5 var(--sans);-webkit-text-size-adjust:100%;overflow:hidden}
+html,body{margin:0;background:var(--bg);color:var(--fg)}
+/* The document itself scrolls (neither html nor body hides its overflow): the keyboard scrolls it by itself, and every control
+   is inside the document, which is what Lavish checks. The bars are pinned with position:sticky; their heights are kept in
+   --top-h and --bar-h so that a card brought into view lands clear of them. */
+html{scroll-padding-top:calc(var(--top-h) + 14px);scroll-padding-bottom:calc(var(--bar-h) + 14px)}
+body{font:15px/1.5 var(--sans);-webkit-text-size-adjust:100%}
 :where(.hs-grid,.hs-main,.hs-choices,.hs-bar,.hs-top,.hs-foot,.hs-card>header)>*{min-width:0}
 :where(p,h1,h2,h3,h4,li,dd,blockquote,label,summary,td,th,small,span,button){overflow-wrap:anywhere}
 :where(img,svg,video,canvas,iframe){max-width:100%;height:auto}
@@ -49,17 +53,19 @@ code{font-family:var(--mono);font-size:max(12px,.88em);background:var(--opt);bor
 button{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 [hidden]{display:none!important}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* nothing inside a folded fold is laid out, so a tool that measures the page never meets a line that is not really shown */
+details:not([open])>:not(summary){display:none}
+.sr{position:absolute;width:1px;height:1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .muted{color:var(--mute)}
 .small{font-size:13.5px}
 
-/* app shell: top bar, one scrolling middle, bottom bar. The bar takes its own row, so it never sits on a card. */
-.hs-app{display:grid;grid-template-rows:auto minmax(0,1fr) auto;height:100vh;height:100dvh}
-.hs-scroll{overflow:auto;min-height:0;overscroll-behavior:contain}
-.hs-scroll:focus{outline:none}
+/* app shell: top bar, the page, bottom bar. The bars are pinned to the window; the bottom bar comes last in the flow, so at the
+   end of the scroll it sits below the last card and never covers a card. */
+.hs-app{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+.hs-page{flex:1 0 auto}
 
 /* top bar */
-.hs-top{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--bar)}
+.hs-top{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line)}
 .hs-brand{font-weight:700;color:var(--hi);display:flex;align-items:center;gap:8px}
 .hs-brand i{width:10px;height:10px;border-radius:50%;background:var(--acc);flex:none}
 .hs-topic{flex:1 1 240px;color:var(--fg);font-size:14px}
@@ -84,7 +90,10 @@ button.chip{cursor:pointer;min-height:32px;background:none}
 
 /* layout */
 .hs-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;padding:14px 16px 20px;max-width:1240px;margin:0 auto}
-@media (min-width:900px){.hs-grid{grid-template-columns:minmax(0,1fr) 340px;align-items:start}.hs-side{position:sticky;top:14px;max-height:calc(100vh - var(--chrome) - 28px);max-height:calc(100dvh - var(--chrome) - 28px);overflow:auto}}
+/* Beside the questions the rail stays in view under the top bar. It never scrolls inside itself (its controls are part of the
+   document); when it is taller than the room between the bars, --side-top (set by the script) pins its bottom edge instead of its
+   top, so scrolling the document still brings all of it into view. */
+@media (min-width:900px){.hs-grid{grid-template-columns:minmax(0,1fr) 340px;align-items:start}.hs-side{position:sticky;top:var(--side-top,calc(var(--top-h) + 14px));z-index:1}}
 @media (min-width:1100px){.hs-grid{grid-template-columns:minmax(0,1fr) 360px}}
 .hs-main{display:flex;flex-direction:column;gap:10px}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px}
@@ -119,7 +128,7 @@ button.chip{cursor:pointer;min-height:32px;background:none}
 .fold-sub:first-child{margin-top:0;padding-top:0;border-top:0}
 
 /* cards */
-.hs-card{scroll-margin-top:14px;position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.hs-card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
 .hs-card[data-state=sent]{opacity:.9}
 .hs-card[data-active]{border-color:color-mix(in oklab,var(--acc) 55%,var(--line))}
 .hs-card[data-active]::before,.hs-card[data-active]::after{content:"";position:absolute;width:12px;height:12px;border:2px solid var(--acc);pointer-events:none}
@@ -183,7 +192,11 @@ figure svg,figure img{border-radius:calc(var(--r) - 2px);border:1px solid var(--
 figcaption{color:var(--mute);font-size:13.5px;margin-top:4px}
 
 /* bottom bar */
-.hs-bar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:10px 16px;background:var(--bar);border-top:1px solid var(--line)}
+.hs-bar{position:sticky;bottom:0;z-index:5;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:10px 16px;border-top:1px solid var(--line)}
+/* Both bars are fully opaque. They are painted with a one-colour gradient, not background-color: Lavish's layout check flags "text
+   covered by an opaque sibling" and reads only the background colour, so a plain colour would report every line of text that sits under
+   a pinned bar at the fold or after a scroll, though such a line is not lost, it simply scrolls out from under the bar. */
+.hs-top,.hs-bar{background:linear-gradient(var(--bar),var(--bar))}
 .hs-bar .inner{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;width:100%;max-width:1208px;margin:0 auto}
 .hs-bar .prog{flex:1 1 220px;font-size:14px;color:var(--fg)}
 .hs-bar .btn2{flex:0 0 auto}
@@ -264,7 +277,7 @@ pre.wrap{white-space:pre-wrap;overflow-wrap:anywhere}
 @media (prefers-reduced-motion:no-preference){.pulse{animation:pulse 1.4s ease-in-out infinite}@keyframes pulse{50%{opacity:.35}}}
 .hs-empty{padding:28px 16px;text-align:center;color:var(--mute)}
 
-@media print{body{overflow:visible;height:auto}.hs-app{display:block;height:auto}.hs-scroll{overflow:visible}.hs-bar{display:none}.hs-side{position:static;max-height:none}}
+@media print{.hs-app{display:block;min-height:0}.hs-top{position:static}.hs-bar{display:none}.hs-side{position:static}}
 </style>
 </head>
 <body>
@@ -667,8 +680,7 @@ function send() {
     alert('Not running under Lavish: the answers were copied to your clipboard. Paste them to the agent.');
   }
 }
-const scroller = () => document.getElementById('scroll');
-function rerenderMain() { const m = document.querySelector('.hs-main'); const sc = scroller(); const y = sc.scrollTop; m.outerHTML = mainCol(); sc.scrollTop = y; activeQ = null; setActive(initialActive()); refresh(); }
+function rerenderMain() { const m = document.querySelector('.hs-main'); const y = window.scrollY; m.outerHTML = mainCol(); window.scrollTo(0, y); activeQ = null; setActive(initialActive()); refresh(); }
 const initialActive = () => { const q = round.questions.find((x) => stance(x, draft.answers[x.id]) === 'open') || round.questions[0]; return q ? q.id : null; };
 
 document.addEventListener('input', (e) => {
@@ -721,13 +733,25 @@ document.addEventListener('click', (e) => {
 function selectLedger() { const p = document.getElementById('ledger-md'); const r = document.createRange(); r.selectNodeContents(p); const s = getSelection(); s.removeAllRanges(); s.addRange(r); const c = document.getElementById('copied'); if (c) c.textContent = 'Selected: press Ctrl+C.'; }
 
 // ---------------------------------------------------------------- boot
-$app.innerHTML = `<div class="hs-app">${header()}<div class="hs-scroll" id="scroll" tabindex="-1"><div class="hs-grid">${mainCol()}${sidebar()}</div></div>${interactive ? bar() : ''}</div>`;
+$app.innerHTML = `<div class="hs-app">${header()}<div class="hs-page"><div class="hs-grid">${mainCol()}${sidebar()}</div></div>${interactive ? bar() : ''}</div>`;
 applyTheme();
 setActive(initialActive());
 refresh();
 fillPane(store.get(`hs:tab:${S.session}`) || 'tree');
-// the rail's height follows the space left by the top bar and the bottom bar
-{ const set = () => document.documentElement.style.setProperty('--chrome', ((document.getElementById('top') || {}).offsetHeight || 0) + ((document.getElementById('bar') || {}).offsetHeight || 0) + 'px'); set(); if (window.ResizeObserver) { const ro = new ResizeObserver(set); ['top', 'bar'].forEach((i) => { const el = document.getElementById(i); if (el) ro.observe(el); }); } }
+// The bars' heights feed the scroll padding and the rail. Beside the questions the rail is pinned under the top bar while the
+// questions scroll; taller than the room between the bars, it is pinned by its bottom edge (a negative top), so the document can
+// still be scrolled until all of it has been in view.
+{
+  const root = document.documentElement.style, by = (i) => document.getElementById(i), side = document.querySelector('.hs-side');
+  const set = () => {
+    const t = (by('top') || {}).offsetHeight || 0, b = (by('bar') || {}).offsetHeight || 0;
+    root.setProperty('--top-h', t + 'px'); root.setProperty('--bar-h', b + 'px');
+    if (side) root.setProperty('--side-top', Math.min(t + 14, window.innerHeight - b - 14 - side.offsetHeight) + 'px');
+  };
+  set();
+  window.addEventListener('resize', set);
+  if (window.ResizeObserver) { const ro = new ResizeObserver(set); ['top', 'bar'].forEach((i) => { const el = by(i); if (el) ro.observe(el); }); if (side) ro.observe(side); }
+}
 })();
 </script>
 </body>
